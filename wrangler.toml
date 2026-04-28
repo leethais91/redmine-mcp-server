@@ -1,0 +1,9 @@
+name = "redmine-mcp-server"
+main = "src/worker.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Set secrets via CLI (never commit actual values):
+#   wrangler secret put REDMINE_URL
+#   wrangler secret put REDMINE_API_KEY
+#   wrangler secret put MCP_AUTH_TOKEN   # required — protects the endpoint
