@@ -12,7 +12,7 @@ import { registerLookupTools } from "./tools/lookups.js";
 export function createServer(env: RedmineEnv): McpServer {
   const server = new McpServer({
     name: "redmine-mcp-server",
-    version: "1.2.0",
+    version: "1.2.1",
   });
 
   registerIssueTools(server, env);

@@ -1,6 +1,6 @@
 {
   "name": "@leethais91/redmine-mcp-server",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "MCP server for Redmine issue tracking API integration",
   "mcpName": "io.github.leethais91/redmine-mcp-server",
   "type": "module",

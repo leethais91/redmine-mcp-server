@@ -63,9 +63,14 @@ manifests, and the `McpServer` constructor in `src/server.ts`. Bump together.
 placeholders and forbids credentials in `headers`, so the server resolves them at
 runtime: environment variables, then `REDMINE_CONFIG_PATH`, then the default config
 path written by `--init`. A path still containing an unexpanded `${...}` is ignored
-on purpose — see `hasUnexpandedPlaceholder` in `config.ts`. An explicitly set
-`REDMINE_CONFIG_PATH` is authoritative: if it is unreadable or malformed that is an
-error, not a reason to quietly fall through to the default file.
+on purpose — see `hasUnexpandedPlaceholder` in `config.ts`.
+
+`REDMINE_CONFIG_PATH` treats absent and broken differently, and the distinction is
+load-bearing. Pointing at a file that does not exist means "look elsewhere", because
+clients set this variable to their own plugin data directory before anything has
+written there; without the fallback, `--init` would report success and change
+nothing that the plugin can see. A file that exists but cannot be read or parsed
+still raises, so a corrupt config is never silently replaced by a different one.
 
 Elicitation is deliberately not used. `elicitation/create` is deprecated (SEP-2577)
 in favour of multi round-trip requests (SEP-2322), the spec requires URL mode rather

@@ -9,11 +9,13 @@
  *
  * Resolution order (first non-empty value wins, per field):
  *   1. process.env.REDMINE_URL / REDMINE_API_KEY
- *   2. JSON file at process.env.REDMINE_CONFIG_PATH
+ *   2. JSON file at process.env.REDMINE_CONFIG_PATH, when that file exists
  *   3. JSON file at the default config path, written by `--init`
  *
  * Step 3 exists so someone installing by hand never has to learn what
- * REDMINE_CONFIG_PATH is; that variable is really for plugin manifests.
+ * REDMINE_CONFIG_PATH is; that variable is really for plugin manifests. It also
+ * covers the common case where a client sets REDMINE_CONFIG_PATH to its own
+ * plugin data directory that nothing has written to yet.
  *
  * Not imported by worker.ts — Cloudflare Workers has no filesystem and receives
  * its credentials as Worker secrets.
@@ -51,17 +53,20 @@ interface RedmineConfigFile {
 }
 
 /**
- * Reads the config file if REDMINE_CONFIG_PATH is set and the file exists.
- * A missing file is not an error — env vars alone are a valid setup. A file
- * that exists but cannot be parsed IS an error, because silently ignoring it
- * would surface later as a confusing "REDMINE_URL is required".
+ * Reads a config file, returning null when it simply is not there.
+ *
+ * Absent and broken are different: a path that points nowhere means "look
+ * elsewhere", which is what lets a plugin-supplied REDMINE_CONFIG_PATH coexist
+ * with a file written by `--init`. A file that exists but cannot be parsed is
+ * an error, because ignoring it would resurface as a confusing "missing
+ * credentials" that hides the real problem.
  */
-function readConfigFile(path: string): RedmineConfigFile {
+function readConfigFile(path: string): RedmineConfigFile | null {
   let raw: string;
   try {
     raw = readFileSync(path, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new ConfigError(
       `Cannot read REDMINE_CONFIG_PATH (${path}): ${(error as Error).message}`
     );
@@ -108,11 +113,14 @@ export function resolveRedmineEnv(): RedmineEnv {
   const rawConfigPath = clean(process.env.REDMINE_CONFIG_PATH);
   const configPath = hasUnexpandedPlaceholder(rawConfigPath) ? "" : rawConfigPath;
 
-  // An explicit path is authoritative: if it is set but unusable, that is worth
-  // reporting rather than silently reading a different file.
-  const file = configPath
-    ? readConfigFile(configPath)
-    : readConfigFile(defaultConfigPath());
+  // An explicit path wins when it holds a file, and a broken one still raises.
+  // When it points nowhere, fall through to the default path: a client that
+  // supplies REDMINE_CONFIG_PATH for its own plugin data must not shadow the
+  // file `--init` wrote, or setup would appear to succeed and change nothing.
+  const file =
+    (configPath ? readConfigFile(configPath) : null) ??
+    readConfigFile(defaultConfigPath()) ??
+    {};
 
   const env: RedmineEnv = {
     REDMINE_URL: clean(process.env.REDMINE_URL) || clean(file.REDMINE_URL),
@@ -131,7 +139,7 @@ export function resolveRedmineEnv(): RedmineEnv {
         `  npx @leethais91/redmine-mcp-server --init\n\n` +
         `It asks for your Redmine URL and API key, checks them against the ` +
         `server, and saves them to:\n` +
-        `  ${configPath || defaultConfigPath()}\n\n` +
+        `  ${defaultConfigPath()}\n\n` +
         `Alternatively, set REDMINE_URL and REDMINE_API_KEY as environment ` +
         `variables.`
     );

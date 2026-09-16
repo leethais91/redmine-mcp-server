@@ -116,9 +116,13 @@ A wrong key is reported immediately rather than on your first tool call.
 The server resolves credentials in this order:
 
 1. `REDMINE_URL` and `REDMINE_API_KEY` environment variables
-2. a JSON file at `REDMINE_CONFIG_PATH` — how plugin manifests point at their own
-   data directory
+2. a JSON file at `REDMINE_CONFIG_PATH`, when that file exists — how plugin
+   manifests point at their own data directory
 3. `~/.config/redmine-mcp/config.json` (or `$XDG_CONFIG_HOME/redmine-mcp/config.json`)
+
+Step 2 falling through when the file is absent is what makes `--init` work for a
+plugin install too: the client sets `REDMINE_CONFIG_PATH` to its own data directory,
+nothing has written there, and the file from `--init` is used instead.
 
 So `--init` covers a manual install, while `REDMINE_CONFIG_PATH` stays available for
 clients that keep per-plugin data. Claude Code points it at
