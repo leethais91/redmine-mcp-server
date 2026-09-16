@@ -1,0 +1,12 @@
+{
+  "name": "leethais91",
+  "description": "Redmine tooling for AI agents.",
+  "owner": { "name": "Thai Le" },
+  "plugins": [
+    {
+      "name": "redmine",
+      "source": "./",
+      "description": "Redmine issue tracking, project management and time logging tools."
+    }
+  ]
+}

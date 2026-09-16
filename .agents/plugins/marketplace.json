@@ -1,0 +1,12 @@
+{
+  "name": "leethais91",
+  "interface": { "displayName": "Redmine tooling for AI agents" },
+  "plugins": [
+    {
+      "name": "redmine",
+      "source": { "source": "local", "path": "./" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_USE" },
+      "category": "Developer Tools"
+    }
+  ]
+}

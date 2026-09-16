@@ -84,8 +84,15 @@ install it in one step. Both manifests start the same npm package over stdio.
 | Cursor, ChatGPT, Kiro | install from the repository URL |
 | VS Code | **Chat: Install Plugin From Source**, or the `@agentPlugins` marketplace |
 | GitHub Copilot | install from the repository URL (IDE or CLI) |
-| Claude Code | `claude --plugin-dir .` locally, or install from the repository |
-| Codex | add a marketplace that lists this repository, then `codex plugin add redmine@<marketplace>` |
+| Claude Code | `claude plugin marketplace add leethais91/redmine-mcp-server` then `claude plugin install redmine@leethais91` |
+| Codex | `codex plugin marketplace add leethais91/redmine-mcp-server` then `codex plugin add redmine@leethais91` |
+
+Installing this way brings the MCP server and the Redmine skill together — there is
+nothing to fetch separately. To try it without installing, run
+`claude --plugin-dir .` from a checkout, which loads both for that session only.
+
+Codex resolves `@latest` to a fixed version when the plugin is installed, so run
+`codex plugin add` again after a new release to pick it up.
 
 Manifests: `plugin.json` + `mcp.json` follow the [Agent Plugins](https://agent-plugins.org)
 v1 spec. Claude Code and Codex each need their own manifest — `.claude-plugin/plugin.json`

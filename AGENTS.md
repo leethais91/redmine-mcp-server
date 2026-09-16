@@ -11,8 +11,8 @@ One tool implementation, four distribution surfaces:
 |---|---|---|
 | npm binary | `dist/index.js` via `bin.redmine-mcp-server` | any client through `npx` |
 | Agent Plugins v1 | `plugin.json` + `mcp.json` | Cursor, Copilot, VS Code, ChatGPT, Kiro |
-| Claude Code plugin | `.claude-plugin/plugin.json` + `.mcp.json` | Claude Code |
-| Codex plugin | `.codex-plugin/plugin.json` + `.mcp.json` | Codex |
+| Claude Code plugin | `.claude-plugin/` + `.mcp.json` | Claude Code |
+| Codex plugin | `.codex-plugin/` + `.agents/plugins/` + `.mcp.json` | Codex |
 | Cloudflare Worker | `src/worker.ts` | remote HTTP clients |
 
 ## Layout
@@ -44,6 +44,12 @@ protocol.
 **Prompt input goes through the line queue in `init.ts`.** Calling `rl.question`
 per prompt drops input: readline keeps consuming the stream between prompts, so on
 a piped stdin the second answer arrives with no question pending and is discarded.
+
+**The repository is its own marketplace.** A plugin manifest alone only supports
+`--plugin-dir`; installing by name needs a marketplace listing the plugin, so
+`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` both point
+at `./` — the plugin sits at the repository root rather than under `plugins/`. Keep
+the plugin name and version in step with the manifests.
 
 **Three plugin manifests, two MCP files.** Codex does not read Agent Plugins v1: it
 requires `.codex-plugin/plugin.json` and rejects a plugin without it. Its manifest
