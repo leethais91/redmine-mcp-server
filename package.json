@@ -1,14 +1,48 @@
 {
-  "name": "redmine-mcp-server",
-  "version": "1.0.0",
+  "name": "@leethais91/redmine-mcp-server",
+  "version": "1.1.0",
   "description": "MCP server for Redmine issue tracking API integration",
+  "mcpName": "io.github.leethais91/redmine-mcp-server",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "redmine-mcp-server": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "README.vi.md",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "author": "Thai Le",
+  "homepage": "https://github.com/leethais91/redmine-mcp-server#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leethais91/redmine-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/leethais91/redmine-mcp-server/issues"
+  },
+  "keywords": [
+    "redmine",
+    "mcp",
+    "model-context-protocol",
+    "issue-tracking",
+    "time-tracking",
+    "project-management"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "postbuild": "node -e \"require('fs').chmodSync('dist/index.js', 0o755)\"",
     "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
     "worker:dev": "wrangler dev",
     "worker:deploy": "wrangler deploy",
     "worker:secret": "wrangler secret put"
@@ -17,7 +51,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.6.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

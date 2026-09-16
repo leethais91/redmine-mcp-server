@@ -74,12 +74,69 @@ Sign in to Redmine → **My Account** (top right) → **API access key** → **S
 
 ---
 
+## Install as a plugin
+
+The repository ships as a plugin for both plugin standards, so most clients can
+install it in one step. Both manifests start the same npm package over stdio.
+
+| Client | How |
+|---|---|
+| Cursor, ChatGPT, Kiro | install from the repository URL |
+| VS Code | **Chat: Install Plugin From Source**, or the `@agentPlugins` marketplace |
+| GitHub Copilot | install from the repository URL (IDE or CLI) |
+| Claude Code | `claude --plugin-dir .` locally, or install from the repository |
+| Codex | add a marketplace that lists this repository, then `codex plugin add redmine@<marketplace>` |
+
+Manifests: `plugin.json` + `mcp.json` follow the [Agent Plugins](https://agent-plugins.org)
+v1 spec. Claude Code and Codex each need their own manifest — `.claude-plugin/plugin.json`
+and `.codex-plugin/plugin.json` — but both read the same `.mcp.json`, which declares
+the server in a form both accept.
+
+Agent Plugins needs a separate `mcp.json` because the standards expand different
+placeholders: Claude Code substitutes `${CLAUDE_PLUGIN_DATA}` and passes
+`${PLUGIN_DATA}` through untouched.
+
+> **A freshly published version may not install.** npm's `min-release-age`
+> supply-chain setting refuses packages younger than the configured window, with
+> `ENOVERSIONS: No versions available`. Either wait out the window or install with
+> `--min-release-age=0`.
+
+### Credentials for a plugin install
+
+Plugin manifests cannot carry secrets, so the server reads them at runtime in this
+order:
+
+1. `REDMINE_URL` and `REDMINE_API_KEY` environment variables
+2. a JSON file at `REDMINE_CONFIG_PATH`, which the manifests point into the plugin's
+   own data directory
+
+After installing, create that file:
+
+```json
+{
+  "REDMINE_URL": "https://redmine.example.com",
+  "REDMINE_API_KEY": "your-api-key"
+}
+```
+
+Claude Code reads it from `~/.claude/plugins/data/redmine/config.json`. Other clients
+use their own plugin data directory. If the server starts without credentials it
+prints the exact path it expects.
+
+Codex has no plugin-data placeholder — it inherits `REDMINE_URL` and `REDMINE_API_KEY`
+from your shell environment instead, via the `env_vars` allowlist in `.mcp.json`.
+
+---
+
 ## Mode 1 — Claude Desktop (Stdio)
 
 ### Install
 
+No install step is needed — `npx` fetches the published package on first run. To
+work from a checkout instead:
+
 ```bash
-git clone <repo-url>
+git clone https://github.com/leethais91/redmine-mcp-server.git
 cd redmine-mcp-server
 npm install
 npm run build
@@ -90,6 +147,23 @@ npm run build
 Add to `claude_desktop_config.json`:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "redmine": {
+      "command": "npx",
+      "args": ["-y", "@leethais91/redmine-mcp-server@latest"],
+      "env": {
+        "REDMINE_URL": "https://redmine.example.com",
+        "REDMINE_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+From a local checkout, point at the build output instead:
 
 ```json
 {

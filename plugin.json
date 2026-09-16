@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "redmine",
+  "version": "1.1.0",
+  "description": "Redmine issue tracking, project management and time logging tools for AI agents.",
+  "author": { "name": "Thai Le" },
+  "homepage": "https://github.com/leethais91/redmine-mcp-server#readme",
+  "repository": "https://github.com/leethais91/redmine-mcp-server",
+  "license": "MIT",
+  "keywords": ["redmine", "issue-tracking", "time-tracking", "project-management", "mcp"]
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "redmine": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@leethais91/redmine-mcp-server@latest"],
+      "env": {
+        "REDMINE_CONFIG_PATH": "${PLUGIN_DATA}/config.json"
+      }
+    }
+  }
+}

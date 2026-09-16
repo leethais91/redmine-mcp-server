@@ -28,3 +28,6 @@ Thumbs.db
 
 # Wrangler
 .wrangler/
+
+# Plans (local only)
+plans/

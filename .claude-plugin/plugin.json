@@ -1,0 +1,10 @@
+{
+  "name": "redmine",
+  "version": "1.1.0",
+  "description": "Redmine issue tracking, project management and time logging tools.",
+  "author": { "name": "Thai Le" },
+  "homepage": "https://github.com/leethais91/redmine-mcp-server#readme",
+  "repository": "https://github.com/leethais91/redmine-mcp-server",
+  "license": "MIT",
+  "mcpServers": "./.mcp.json"
+}
