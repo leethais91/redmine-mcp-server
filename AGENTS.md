@@ -30,8 +30,20 @@ skills/redmine/    portable Agent Skill shipped with the plugin
 
 ## Rules that are easy to get wrong
 
-**`config.ts` is Node-only.** It uses `node:fs`. Cloudflare Workers has no filesystem,
-so `worker.ts` takes credentials from Worker secrets and must never import it.
+**`config.ts` and `init.ts` are Node-only.** They use `node:fs`, and `init.ts` also
+uses stdin. Cloudflare Workers has neither, so `worker.ts` takes credentials from
+Worker secrets and must never import either module.
+
+**Nothing may be written to stdout or stderr on a successful start.** stdout is the
+JSON-RPC channel, and clients log every stderr line at error level — Claude Code
+counts them as failures and can mark a healthy server as failed
+(anthropics/claude-code#17653, closed as not planned). A startup banner is not
+harmless here. `init.ts` writes to stdout freely because `--init` never speaks the
+protocol.
+
+**Prompt input goes through the line queue in `init.ts`.** Calling `rl.question`
+per prompt drops input: readline keeps consuming the stream between prompts, so on
+a piped stdin the second answer arrives with no question pending and is discarded.
 
 **Three plugin manifests, two MCP files.** Codex does not read Agent Plugins v1: it
 requires `.codex-plugin/plugin.json` and rejects a plugin without it. Its manifest
@@ -49,9 +61,15 @@ manifests, and the `McpServer` constructor in `src/server.ts`. Bump together.
 
 **Credentials never travel in a manifest.** The Agent Plugins spec expands only two
 placeholders and forbids credentials in `headers`, so the server resolves them at
-runtime: environment variables first, then a JSON file at `REDMINE_CONFIG_PATH`. A
-path still containing an unexpanded `${...}` is ignored on purpose — see
-`hasUnexpandedPlaceholder` in `config.ts`.
+runtime: environment variables, then `REDMINE_CONFIG_PATH`, then the default config
+path written by `--init`. A path still containing an unexpanded `${...}` is ignored
+on purpose — see `hasUnexpandedPlaceholder` in `config.ts`. An explicitly set
+`REDMINE_CONFIG_PATH` is authoritative: if it is unreadable or malformed that is an
+error, not a reason to quietly fall through to the default file.
+
+Elicitation is deliberately not used. `elicitation/create` is deprecated (SEP-2577)
+in favour of multi round-trip requests (SEP-2322), the spec requires URL mode rather
+than a form for API keys, and client support is uneven.
 
 **Worker auth fails closed.** `MCP_AUTH_TOKEN` is required; a missing secret returns
 500 rather than serving unauthenticated traffic. Do not reintroduce a public mode.

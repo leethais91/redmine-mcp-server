@@ -10,12 +10,18 @@
  * Resolution order (first non-empty value wins, per field):
  *   1. process.env.REDMINE_URL / REDMINE_API_KEY
  *   2. JSON file at process.env.REDMINE_CONFIG_PATH
+ *   3. JSON file at the default config path, written by `--init`
+ *
+ * Step 3 exists so someone installing by hand never has to learn what
+ * REDMINE_CONFIG_PATH is; that variable is really for plugin manifests.
  *
  * Not imported by worker.ts — Cloudflare Workers has no filesystem and receives
  * its credentials as Worker secrets.
  */
 
 import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { RedmineEnv } from "./services/api.js";
 
 /**
@@ -29,7 +35,16 @@ export class ConfigError extends Error {
   }
 }
 
-/** Shape of the JSON file at REDMINE_CONFIG_PATH. Keys mirror the env vars. */
+/**
+ * Where `--init` writes credentials and where the server looks when nothing
+ * else supplies them. Follows the XDG base directory convention.
+ */
+export function defaultConfigPath(): string {
+  const base = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
+  return join(base, "redmine-mcp", "config.json");
+}
+
+/** Shape of the JSON config file. Keys mirror the env vars. */
 interface RedmineConfigFile {
   REDMINE_URL?: string;
   REDMINE_API_KEY?: string;
@@ -92,7 +107,12 @@ function hasUnexpandedPlaceholder(value: string): boolean {
 export function resolveRedmineEnv(): RedmineEnv {
   const rawConfigPath = clean(process.env.REDMINE_CONFIG_PATH);
   const configPath = hasUnexpandedPlaceholder(rawConfigPath) ? "" : rawConfigPath;
-  const file = configPath ? readConfigFile(configPath) : {};
+
+  // An explicit path is authoritative: if it is set but unusable, that is worth
+  // reporting rather than silently reading a different file.
+  const file = configPath
+    ? readConfigFile(configPath)
+    : readConfigFile(defaultConfigPath());
 
   const env: RedmineEnv = {
     REDMINE_URL: clean(process.env.REDMINE_URL) || clean(file.REDMINE_URL),
@@ -105,14 +125,15 @@ export function resolveRedmineEnv(): RedmineEnv {
   );
 
   if (missing.length > 0) {
-    const target = configPath || "<path>";
     throw new ConfigError(
-      `Missing Redmine credentials: ${missing.join(", ")}.\n` +
-        `Set them as environment variables, or write them to a JSON file and ` +
-        `point REDMINE_CONFIG_PATH at it:\n` +
-        `  ${target}\n` +
-        `  { "REDMINE_URL": "https://redmine.example.com", "REDMINE_API_KEY": "<your key>" }\n` +
-        `Find your API key in Redmine under My Account -> API access key.`
+      `Missing Redmine credentials: ${missing.join(", ")}.\n\n` +
+        `Run this once to set them up:\n` +
+        `  npx @leethais91/redmine-mcp-server --init\n\n` +
+        `It asks for your Redmine URL and API key, checks them against the ` +
+        `server, and saves them to:\n` +
+        `  ${configPath || defaultConfigPath()}\n\n` +
+        `Alternatively, set REDMINE_URL and REDMINE_API_KEY as environment ` +
+        `variables.`
     );
   }
 

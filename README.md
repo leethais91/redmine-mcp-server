@@ -101,30 +101,30 @@ placeholders: Claude Code substitutes `${CLAUDE_PLUGIN_DATA}` and passes
 > `ENOVERSIONS: No versions available`. Either wait out the window or install with
 > `--min-release-age=0`.
 
-### Credentials for a plugin install
+### Credentials
 
-Plugin manifests cannot carry secrets, so the server reads them at runtime in this
-order:
+Run setup once:
 
-1. `REDMINE_URL` and `REDMINE_API_KEY` environment variables
-2. a JSON file at `REDMINE_CONFIG_PATH`, which the manifests point into the plugin's
-   own data directory
-
-After installing, create that file:
-
-```json
-{
-  "REDMINE_URL": "https://redmine.example.com",
-  "REDMINE_API_KEY": "your-api-key"
-}
+```bash
+npx @leethais91/redmine-mcp-server --init
 ```
 
-Claude Code reads it from `~/.claude/plugins/data/redmine/config.json`. Other clients
-use their own plugin data directory. If the server starts without credentials it
-prints the exact path it expects.
+It asks for your Redmine URL and API key, verifies them against the server before
+saving, and writes `~/.config/redmine-mcp/config.json` with owner-only permissions.
+A wrong key is reported immediately rather than on your first tool call.
 
-Codex has no plugin-data placeholder — it inherits `REDMINE_URL` and `REDMINE_API_KEY`
-from your shell environment instead, via the `env_vars` allowlist in `.mcp.json`.
+The server resolves credentials in this order:
+
+1. `REDMINE_URL` and `REDMINE_API_KEY` environment variables
+2. a JSON file at `REDMINE_CONFIG_PATH` — how plugin manifests point at their own
+   data directory
+3. `~/.config/redmine-mcp/config.json` (or `$XDG_CONFIG_HOME/redmine-mcp/config.json`)
+
+So `--init` covers a manual install, while `REDMINE_CONFIG_PATH` stays available for
+clients that keep per-plugin data. Claude Code points it at
+`~/.claude/plugins/data/redmine/config.json`; Codex has no such placeholder and
+inherits the two environment variables from your shell via the `env_vars` allowlist
+in `.mcp.json`. Any of the three paths works on its own.
 
 ---
 
