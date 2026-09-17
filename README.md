@@ -5,7 +5,8 @@
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude (Desktop, Code, claude.ai, OpenClaw) drive a Redmine instance directly — list and search issues, create or update tickets, log time, and look up projects, users, statuses, and custom fields, all in natural language.
 
 **Highlights**
-- 🛠️ **20 tools** across issues, projects, time tracking, and lookups
+- 🛠️ **22 tools** across issues, projects, time tracking, attachments, and lookups
+- 📎 **Attachments both ways** — upload a local file or image to an issue, download one back to disk, and view image attachments inline
 - ⚡ **Stateless & lightweight** — native `fetch`, zod-validated inputs, markdown-formatted output tuned for LLMs
 - 🔑 **Credentials stay out of client config** — `--init` stores them once, every client reuses them
 
@@ -53,6 +54,14 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 | `redmine_list_custom_fields` | Custom fields |
 | `redmine_list_memberships` | Project members and their roles |
 | `redmine_list_activities` | Time-entry activities (Design, Dev, etc.) |
+
+### Attachments
+| Tool | Description |
+|---|---|
+| `redmine_upload_attachment` | Attach a local file or base64 content to an issue |
+| `redmine_download_attachment` | Download an attachment; images come back viewable |
+
+Attachment IDs come from `redmine_get_issue` with `include="attachments"`.
 
 ---
 
@@ -201,6 +210,22 @@ Restart Claude Desktop. The MCP server will appear in the tools list.
 
 ---
 
+### Where downloads go
+
+`redmine_download_attachment` writes files it saves into one directory, decided
+by configuration rather than by the tool call — no tool takes a destination
+path. It defaults to `redmine-mcp` under the system temp directory, which does
+not survive a reboot. Set `REDMINE_DOWNLOAD_DIR` to keep them somewhere durable:
+
+```bash
+REDMINE_DOWNLOAD_DIR=~/Downloads/redmine
+```
+
+Image attachments are returned as viewable images instead, so they usually never
+touch the disk. Pass `mode: "file"` to save one anyway.
+
+---
+
 ## Development
 
 ```bash
@@ -222,3 +247,5 @@ Once configured, you can ask Claude things like:
 - "Mark issue #123 as done"
 - "Log 2 hours against issue #456 today"
 - "Who has the most issues assigned?"
+- "Attach ~/Desktop/crash.log to issue #123"
+- "Show me the screenshot attached to issue #456"

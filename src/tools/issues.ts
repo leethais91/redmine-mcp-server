@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { makeApiRequest, handleApiError, RedmineEnv } from "../services/api.js";
+import { makeApiRequest, handleApiError, formatBytes, RedmineEnv } from "../services/api.js";
 import { RedmineIssue } from "../types.js";
 import { DEFAULT_LIMIT, MAX_LIMIT, CHARACTER_LIMIT } from "../constants.js";
 
@@ -195,12 +195,13 @@ Args:
 
 Args:
   - issue_id: The issue ID (required)
-  - include: Associations: "journals", "children", "relations", "changesets", "watchers"
+  - include: Associations: "journals", "children", "relations", "attachments", "changesets", "watchers".
+    Include "attachments" to get the attachment IDs that redmine_download_attachment needs.
   - view: "compact" (default: id, subject, status, priority, assignee, done, tracker, project) or "full" (all fields + description + custom_fields)
   - fields: Override view with specific fields, e.g. ["id","subject","status","custom_fields"]. Available: id, subject, project, tracker, status, priority, author, assigned_to, category, fixed_version, parent, start_date, due_date, done_ratio, estimated_hours, spent_hours, created_on, updated_on, closed_on, custom_fields, description`,
       inputSchema: {
         issue_id: z.coerce.number().int().positive().describe("Issue ID"),
-        include: z.string().optional().describe("Associations to include: journals,children,relations,changesets,watchers"),
+        include: z.string().optional().describe("Associations to include: journals,children,relations,attachments,changesets,watchers"),
         view: z.enum(["compact", "full"]).default("compact").describe("compact (key fields only) or full (all details)"),
         fields: z.array(z.string()).optional().describe("Specific fields to show, overrides view mode"),
       },
@@ -252,6 +253,16 @@ Args:
           for (const child of issue.children) {
             const status = child.status ? ` [${child.status.name}]` : "";
             text += `- #${child.id}: ${child.subject} (${child.tracker.name})${status}\n`;
+          }
+        }
+
+        // Append attachments if included. The IDs matter as much as the names:
+        // they are the only handle redmine_download_attachment accepts.
+        if (issue.attachments?.length) {
+          text += "\n\n### Attachments\n";
+          for (const attachment of issue.attachments) {
+            const description = attachment.description ? ` — ${attachment.description}` : "";
+            text += `- [${attachment.id}] ${attachment.filename} (${formatBytes(attachment.filesize)}, ${attachment.content_type})${description}\n`;
           }
         }
 

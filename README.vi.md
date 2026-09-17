@@ -5,7 +5,8 @@
 [Model Context Protocol](https://modelcontextprotocol.io) server giúp Claude (Desktop, Code, claude.ai, OpenClaw) thao tác trực tiếp với Redmine bằng ngôn ngữ tự nhiên — liệt kê/tìm kiếm issue, tạo & cập nhật ticket, log thời gian, tra cứu project, user, status, custom field...
 
 **Điểm nổi bật**
-- 🛠️ **20 tools** cho issues, projects, time tracking và lookups
+- 🛠️ **22 tools** cho issues, projects, time tracking, attachments và lookups
+- 📎 **Attachment hai chiều** — upload file/ảnh local lên issue, download về đĩa, và xem ảnh trực tiếp trong hội thoại
 - ⚡ **Stateless & nhẹ** — native `fetch`, input validate bằng zod, output markdown tối ưu cho LLM
 - 🔑 **Credential không nằm trong config client** — `--init` lưu một lần, mọi client dùng lại
 
@@ -53,6 +54,14 @@
 | `redmine_list_custom_fields` | Danh sách custom fields |
 | `redmine_list_memberships` | Thành viên project và role của họ |
 | `redmine_list_activities` | Activity cho time entry (Design, Dev...) |
+
+### Attachments
+| Tool | Mô tả |
+|---|---|
+| `redmine_upload_attachment` | Attach file local hoặc nội dung base64 vào issue |
+| `redmine_download_attachment` | Download attachment; ảnh trả về xem được luôn |
+
+ID attachment lấy từ `redmine_get_issue` với `include="attachments"`.
 
 ---
 
@@ -200,6 +209,22 @@ Khởi động lại Claude Desktop. MCP server sẽ xuất hiện trong danh s�
 
 ---
 
+### Nơi lưu file download
+
+`redmine_download_attachment` ghi file vào một thư mục duy nhất, quyết định bởi
+cấu hình chứ không phải bởi tool call — không tool nào nhận đường dẫn đích. Mặc
+định là `redmine-mcp` trong thư mục temp của hệ thống, sẽ mất khi reboot. Set
+`REDMINE_DOWNLOAD_DIR` để lưu vào chỗ bền hơn:
+
+```bash
+REDMINE_DOWNLOAD_DIR=~/Downloads/redmine
+```
+
+Attachment là ảnh thì được trả về dạng ảnh xem được luôn, thường không chạm tới
+đĩa. Muốn lưu thì truyền `mode: "file"`.
+
+---
+
 ## Development
 
 ```bash
@@ -221,6 +246,8 @@ Sau khi cấu hình xong, bạn có thể nói với Claude:
 - "Cập nhật issue #123 thành đã hoàn thành"
 - "Log 2 giờ cho issue #456 hôm nay"
 - "Ai đang được assign nhiều issue nhất?"
+- "Attach file ~/Desktop/crash.log vào issue #123"
+- "Cho tôi xem ảnh screenshot đính kèm trong issue #456"
 
 ---
 

@@ -4,8 +4,9 @@ Context for AI agents working on this repository.
 
 ## What this is
 
-An MCP server exposing 20 Redmine tools (issues, time entries, projects, lookups).
-Node stdio only — one tool implementation, four distribution surfaces:
+An MCP server exposing 22 Redmine tools (issues, time entries, projects,
+attachments, lookups). Node stdio only — one tool implementation, four
+distribution surfaces:
 
 | Surface | Entry point | Consumed by |
 |---|---|---|
@@ -22,14 +23,35 @@ src/
   index.ts           stdio entry point
   config.ts          credential resolution
   services/api.ts    Redmine REST client over native fetch; owns RedmineEnv
-  tools/             issues, projects, time_entries, lookups
+  services/files.ts  local reads for uploads, confined writes for downloads
+  tools/             issues, projects, time_entries, lookups, attachments
 skills/redmine/      portable Agent Skill shipped with the plugin
 ```
 
 ## Rules that are easy to get wrong
 
-**`config.ts` and `init.ts` are Node-only.** They use `node:fs`, and `init.ts` also
-uses stdin.
+**`services/api.ts` has one request core, three wrappers.** `request()` owns the
+credential check, URL assembly, the timeout, and turning a non-2xx into a
+`RedmineApiError`; `makeApiRequest` reads JSON on top of it, `uploadBytes` and
+`downloadBytes` move bytes. Add transport concerns to `request()`, not to a wrapper.
+
+**Attachments are two Redmine calls, never one.** `POST /uploads.json?filename=`
+stages bytes and returns a token that is not an attachment yet; binding it needs a
+second `PUT /issues/:id.json` with `uploads: [{token, filename}]`. Unbound tokens
+are pruned after about a day, so the two calls stay in one tool.
+
+**Never download from the `content_url` in an attachment response.** Redmine
+composes it from its own host setting, which is routinely wrong behind a reverse
+proxy. Build the path from the configured base URL instead. Binary downloads also
+pass `redirect: "manual"`: Redmine answers an unauthenticated download with a 302
+to the login page, and a followed redirect yields 200 with HTML — a corrupt file
+that reads as success.
+
+**Downloads never take a destination path.** A filename from Redmine is
+attacker-controlled text, so `services/files.ts` writes only into
+`REDMINE_DOWNLOAD_DIR` (or a temp default) and strips the name to a basename.
+Reading an arbitrary path for an upload is fine — the calling agent already has its
+own file-read tools, so it is no escalation.
 
 **Nothing may be written to stdout or stderr on a successful start.** stdout is the
 JSON-RPC channel, and clients log every stderr line at error level — Claude Code
@@ -118,4 +140,10 @@ There is no test suite yet. Verify changes by running the stdio server with
 credentials and exercising the affected tool. For credential handling, also check
 the degraded path: start the server with `XDG_CONFIG_HOME` pointing at an empty
 directory and no `REDMINE_*` variables, then call any tool — it must stay up,
-advertise all 20 tools, and answer with the setup instructions.
+advertise all 22 tools, and answer with the setup instructions.
+
+For attachments, verify against a real instance in both directions: upload a small
+file to a scratch issue, read it back with `redmine_get_issue` and
+`include="attachments"`, download it, and compare the bytes on disk with the
+`filesize` Redmine reported. A download that silently produced an HTML login page
+is the failure this catches.
