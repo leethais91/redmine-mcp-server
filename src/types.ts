@@ -26,6 +26,7 @@ export interface RedmineIssue {
   children?: RedmineChildIssue[];
   relations?: RedmineRelation[];
   custom_fields?: RedmineCustomField[];
+  attachments?: RedmineAttachment[];
 }
 
 export interface RedmineRef {
@@ -133,4 +134,16 @@ export interface RedminePaginatedResponse<T> {
   offset: number;
   limit: number;
   items: T[];
+}
+
+export interface RedmineAttachment {
+  id: number;
+  filename: string;
+  filesize: number;
+  content_type: string;
+  description: string;
+  content_url: string;
+  thumbnail_url?: string;
+  author: RedmineRef;
+  created_on: string;
 }

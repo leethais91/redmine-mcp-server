@@ -5,26 +5,15 @@
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude (Desktop, Code, claude.ai, OpenClaw) drive a Redmine instance directly — list and search issues, create or update tickets, log time, and look up projects, users, statuses, and custom fields, all in natural language.
 
 **Highlights**
-- 🛠️ **20 tools** across issues, projects, time tracking, and lookups
-- 🔁 **Two transports, one core** — same `createServer()` runs as local stdio and as a Cloudflare Worker
-- 🔐 **Auth fails closed** on the Worker (mandatory `MCP_AUTH_TOKEN` Bearer guard, no public mode)
+- 🛠️ **22 tools** across issues, projects, time tracking, attachments, and lookups
+- 📎 **Attachments both ways** — upload a local file or image to an issue, download one back to disk, and view image attachments inline
 - ⚡ **Stateless & lightweight** — native `fetch`, zod-validated inputs, markdown-formatted output tuned for LLMs
-- 🆓 **Free to host** — fits inside the Cloudflare Workers free tier
-
-**Pick a mode**
-
-| Mode | Best for | Latency | Always-on | Multi-device |
-|---|---|---|---|---|
-| **Stdio** (`src/index.ts`) | Claude Desktop only | In-process, ~0ms | While app runs | One machine |
-| **Cloudflare Workers** (`src/worker.ts`) | Claude Code, claude.ai (web + mobile), OpenClaw | ~50–200ms | Yes | Yes |
-
-You can run both side by side — they share the tool implementations in `src/server.ts`.
+- 🔑 **Credentials stay out of client config** — `--init` stores them once, every client reuses them
 
 **Requirements**
 
-- Node.js 18+ (uses native `fetch`, works in Node 18+ and Cloudflare Workers)
+- Node.js 18+ (uses native `fetch`)
 - A Redmine instance with API access enabled
-- For Workers mode: a free [Cloudflare](https://cloudflare.com) account
 
 ---
 
@@ -65,6 +54,14 @@ You can run both side by side — they share the tool implementations in `src/se
 | `redmine_list_custom_fields` | Custom fields |
 | `redmine_list_memberships` | Project members and their roles |
 | `redmine_list_activities` | Time-entry activities (Design, Dev, etc.) |
+
+### Attachments
+| Tool | Description |
+|---|---|
+| `redmine_upload_attachment` | Attach a local file or base64 content to an issue |
+| `redmine_download_attachment` | Download an attachment; images come back viewable |
+
+Attachment IDs come from `redmine_get_issue` with `include="attachments"`.
 
 ---
 
@@ -157,7 +154,7 @@ in `.mcp.json`. Any of the paths works on its own.
 
 ---
 
-## Mode 1 — Claude Desktop (Stdio)
+## Manual setup (Claude Desktop, Codex, any stdio client)
 
 ### Install
 
@@ -213,87 +210,19 @@ Restart Claude Desktop. The MCP server will appear in the tools list.
 
 ---
 
-## Mode 2 — Cloudflare Workers (Remote HTTP)
+### Where downloads go
 
-For **Claude Code**, **claude.ai**, **OpenClaw** — nothing runs on your local machine.
-
-### Step 1 — Install dependencies
-
-```bash
-npm install
-```
-
-### Step 2 — Log in to Cloudflare
+`redmine_download_attachment` writes files it saves into one directory, decided
+by configuration rather than by the tool call — no tool takes a destination
+path. It defaults to `redmine-mcp` under the system temp directory, which does
+not survive a reboot. Set `REDMINE_DOWNLOAD_DIR` to keep them somewhere durable:
 
 ```bash
-npx wrangler login
+REDMINE_DOWNLOAD_DIR=~/Downloads/redmine
 ```
 
-A browser will open for authentication.
-
-### Step 3 — Set secrets
-
-```bash
-npx wrangler secret put REDMINE_URL
-# Enter: https://redmine.example.com
-
-npx wrangler secret put REDMINE_API_KEY
-# Enter: your-api-key
-
-npx wrangler secret put MCP_AUTH_TOKEN
-# Enter: any string used to guard the endpoint (e.g. my-secret-token-123)
-```
-
-> Generate a strong random token with:
-> ```bash
-> openssl rand -base64 32
-> ```
-> Copy the output and paste it when `wrangler secret put MCP_AUTH_TOKEN` prompts. Save it somewhere safe — you'll need it to configure clients.
-
-> `MCP_AUTH_TOKEN` is **required**. If unset, every request returns `500 Server misconfigured`. The endpoint does not support a public mode — this MCP server is designed for personal use.
-
-### Step 4 — Deploy
-
-```bash
-npm run worker:deploy
-```
-
-After deploy you'll see a URL like:
-```
-https://redmine-mcp-server.<subdomain>.workers.dev
-```
-
-### Step 5 — Configure your client
-
-**Claude Code** — run:
-
-```bash
-# Add for the current project (local scope)
-claude mcp add cc-redmine --transport http https://redmine-mcp-server.<subdomain>.workers.dev/mcp --header "Authorization: Bearer your-mcp-auth-token"
-
-# Or add globally (available in every project)
-claude mcp add cc-redmine --transport http https://redmine-mcp-server.<subdomain>.workers.dev/mcp --header "Authorization: Bearer your-mcp-auth-token" --scope user
-```
-
-**Claude.ai** — go to **Settings → Integrations → Add custom integration**:
-- URL: `https://redmine-mcp-server.<subdomain>.workers.dev/mcp`
-- Header: `Authorization: Bearer your-mcp-auth-token`
-
-**OpenClaw** — add an MCP server with the same URL and header.
-
-### Test after deploy
-
-```bash
-# Health check
-curl https://redmine-mcp-server.<subdomain>.workers.dev/health \
-  -H "Authorization: Bearer your-mcp-auth-token"
-
-# List tools
-curl https://redmine-mcp-server.<subdomain>.workers.dev/mcp \
-  -H "Authorization: Bearer your-mcp-auth-token" \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-```
+Image attachments are returned as viewable images instead, so they usually never
+touch the disk. Pass `mode: "file"` to save one anyway.
 
 ---
 
@@ -303,18 +232,8 @@ curl https://redmine-mcp-server.<subdomain>.workers.dev/mcp \
 # Run local stdio (dev mode)
 npm run dev
 
-# Run Workers locally (env vars must be in .dev.vars)
-npm run worker:dev
-
 # Build TypeScript
 npm run build
-```
-
-**`.dev.vars`** file (used by `worker:dev`, do not commit):
-```
-REDMINE_URL=https://redmine.example.com
-REDMINE_API_KEY=your-api-key
-MCP_AUTH_TOKEN=dev-token
 ```
 
 ---
@@ -328,3 +247,5 @@ Once configured, you can ask Claude things like:
 - "Mark issue #123 as done"
 - "Log 2 hours against issue #456 today"
 - "Who has the most issues assigned?"
+- "Attach ~/Desktop/crash.log to issue #123"
+- "Show me the screenshot attached to issue #456"

@@ -1,6 +1,6 @@
 {
   "name": "@leethais91/redmine-mcp-server",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "MCP server for Redmine issue tracking API integration",
   "mcpName": "io.github.leethais91/redmine-mcp-server",
   "type": "module",
@@ -42,10 +42,7 @@
     "build": "tsc",
     "postbuild": "node -e \"require('fs').chmodSync('dist/index.js', 0o755)\"",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build",
-    "worker:dev": "wrangler dev",
-    "worker:deploy": "wrangler deploy",
-    "worker:secret": "wrangler secret put"
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "engines": {
     "node": ">=18"
@@ -55,10 +52,8 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241230.0",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "wrangler": "^4.85.0"
+    "typescript": "^5.7.2"
   }
 }

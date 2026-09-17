@@ -4,8 +4,9 @@ Context for AI agents working on this repository.
 
 ## What this is
 
-An MCP server exposing 20 Redmine tools (issues, time entries, projects, lookups).
-One tool implementation, four distribution surfaces:
+An MCP server exposing 22 Redmine tools (issues, time entries, projects,
+attachments, lookups). Node stdio only — one tool implementation, four
+distribution surfaces:
 
 | Surface | Entry point | Consumed by |
 |---|---|---|
@@ -13,26 +14,44 @@ One tool implementation, four distribution surfaces:
 | Agent Plugins v1 | `plugin.json` + `mcp.json` | Cursor, Copilot, VS Code, ChatGPT, Kiro |
 | Claude Code plugin | `.claude-plugin/` + `.mcp.json` | Claude Code |
 | Codex plugin | `.codex-plugin/` + `.agents/plugins/` + `.mcp.json` | Codex |
-| Cloudflare Worker | `src/worker.ts` | remote HTTP clients |
 
 ## Layout
 
 ```
 src/
-  server.ts        createServer(env) — registers all tools; shared by both entry points
-  index.ts         stdio entry point (Node)
-  worker.ts        Cloudflare Worker entry point (Streamable HTTP, POST /mcp)
-  config.ts        credential resolution — Node only, never import from worker.ts
-  services/api.ts  Redmine REST client over native fetch; owns RedmineEnv
-  tools/           issues, projects, time_entries, lookups
-skills/redmine/    portable Agent Skill shipped with the plugin
+  server.ts          createServer(env) — registers all tools
+  index.ts           stdio entry point
+  config.ts          credential resolution
+  services/api.ts    Redmine REST client over native fetch; owns RedmineEnv
+  services/files.ts  local reads for uploads, confined writes for downloads
+  tools/             issues, projects, time_entries, lookups, attachments
+skills/redmine/      portable Agent Skill shipped with the plugin
 ```
 
 ## Rules that are easy to get wrong
 
-**`config.ts` and `init.ts` are Node-only.** They use `node:fs`, and `init.ts` also
-uses stdin. Cloudflare Workers has neither, so `worker.ts` takes credentials from
-Worker secrets and must never import either module.
+**`services/api.ts` has one request core, three wrappers.** `request()` owns the
+credential check, URL assembly, the timeout, and turning a non-2xx into a
+`RedmineApiError`; `makeApiRequest` reads JSON on top of it, `uploadBytes` and
+`downloadBytes` move bytes. Add transport concerns to `request()`, not to a wrapper.
+
+**Attachments are two Redmine calls, never one.** `POST /uploads.json?filename=`
+stages bytes and returns a token that is not an attachment yet; binding it needs a
+second `PUT /issues/:id.json` with `uploads: [{token, filename}]`. Unbound tokens
+are pruned after about a day, so the two calls stay in one tool.
+
+**Never download from the `content_url` in an attachment response.** Redmine
+composes it from its own host setting, which is routinely wrong behind a reverse
+proxy. Build the path from the configured base URL instead. Binary downloads also
+pass `redirect: "manual"`: Redmine answers an unauthenticated download with a 302
+to the login page, and a followed redirect yields 200 with HTML — a corrupt file
+that reads as success.
+
+**Downloads never take a destination path.** A filename from Redmine is
+attacker-controlled text, so `services/files.ts` writes only into
+`REDMINE_DOWNLOAD_DIR` (or a temp default) and strips the name to a basename.
+Reading an arbitrary path for an upload is fine — the calling agent already has its
+own file-read tools, so it is no escalation.
 
 **Nothing may be written to stdout or stderr on a successful start.** stdout is the
 JSON-RPC channel, and clients log every stderr line at error level — Claude Code
@@ -104,9 +123,6 @@ Elicitation is deliberately not used. `elicitation/create` is deprecated (SEP-25
 in favour of multi round-trip requests (SEP-2322), the spec requires URL mode rather
 than a form for API keys, and client support is uneven.
 
-**Worker auth fails closed.** `MCP_AUTH_TOKEN` is required; a missing secret returns
-500 rather than serving unauthenticated traffic. Do not reintroduce a public mode.
-
 **Skill tool names are unprefixed.** Clients namespace differently
 (`mcp__plugin_redmine_redmine__*` in Claude Code, other schemes elsewhere), so
 `skills/redmine/SKILL.md` refers to bare names like `redmine_list_issues`.
@@ -117,7 +133,6 @@ than a form for API keys, and client support is uneven.
 npm run build        # tsc, then chmod +x on the binary
 npm start            # run the stdio server
 npm start -- --init  # interactive setup; add --url/--api-key/--config-path to skip prompts
-npm run worker:dev   # run the Worker locally
 npm pack --dry-run   # inspect what would be published
 ```
 
@@ -125,4 +140,10 @@ There is no test suite yet. Verify changes by running the stdio server with
 credentials and exercising the affected tool. For credential handling, also check
 the degraded path: start the server with `XDG_CONFIG_HOME` pointing at an empty
 directory and no `REDMINE_*` variables, then call any tool — it must stay up,
-advertise all 20 tools, and answer with the setup instructions.
+advertise all 22 tools, and answer with the setup instructions.
+
+For attachments, verify against a real instance in both directions: upload a small
+file to a scratch issue, read it back with `redmine_get_issue` and
+`include="attachments"`, download it, and compare the bytes on disk with the
+`filesize` Redmine reported. A download that silently produced an HTML login page
+is the failure this catches.

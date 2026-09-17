@@ -114,6 +114,27 @@ For bulk timesheet auto-fill ("log this week", "fill timesheet"), see `reference
 
 **Custom fields rule:** Always call `redmine_list_custom_fields` once per session before sending custom_fields in create/update — IDs vary per Redmine instance. Cache the result mentally for the rest of the session.
 
+### 8. Attachments
+
+```
+redmine_upload_attachment
+  required: issue_id, and exactly one of file_path | content_b64
+  optional: filename (required with content_b64), description, notes
+
+redmine_download_attachment(attachment_id, mode?)
+  - mode "auto" (default): images come back viewable, everything else is saved
+  - mode "file": always save to disk and report the path
+  - mode "image": return as a viewable image (images only)
+```
+
+Attachment IDs are not in the default issue output. Call
+`redmine_get_issue(id, include="attachments")` first — it lists each one as
+`[id] filename (size, type)`.
+
+Uploading already writes an entry to the issue history, so do not follow it with
+`redmine_add_note` unless the user asked for a separate comment. Pass `notes` to
+the upload instead.
+
 ## Workflows
 
 ### Quick Project Overview

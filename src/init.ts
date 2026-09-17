@@ -11,7 +11,6 @@
  * lets a coding agent, an installer, or CI run setup without a TTY. The
  * verify-then-write order is the same either way.
  *
- * Not imported by worker.ts — Cloudflare Workers has no filesystem or stdin.
  */
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
