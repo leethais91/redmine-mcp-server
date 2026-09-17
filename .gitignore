@@ -11,7 +11,6 @@ docs/
 .env
 .env.local
 .env.*.local
-.dev.vars
 
 # Logs
 *.log
@@ -25,9 +24,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-
-# Wrangler
-.wrangler/
 
 # Plans (local only)
 plans/

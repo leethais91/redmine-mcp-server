@@ -1,5 +1,5 @@
 /**
- * McpServer factory — shared between stdio (index.ts) and Cloudflare Workers (worker.ts).
+ * McpServer factory for the stdio entry point (index.ts).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
  * Stdio entry point for local MCP clients (Claude Desktop, Claude Code, Codex).
- * For Cloudflare Workers deployment, see src/worker.ts.
  *
  * Run with --init for setup, interactive or with --url/--api-key. Otherwise
  * credentials come from environment variables or a JSON config file — see

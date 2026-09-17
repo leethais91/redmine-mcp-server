@@ -5,7 +5,7 @@ Context for AI agents working on this repository.
 ## What this is
 
 An MCP server exposing 20 Redmine tools (issues, time entries, projects, lookups).
-One tool implementation, four distribution surfaces:
+Node stdio only — one tool implementation, four distribution surfaces:
 
 | Surface | Entry point | Consumed by |
 |---|---|---|
@@ -13,26 +13,23 @@ One tool implementation, four distribution surfaces:
 | Agent Plugins v1 | `plugin.json` + `mcp.json` | Cursor, Copilot, VS Code, ChatGPT, Kiro |
 | Claude Code plugin | `.claude-plugin/` + `.mcp.json` | Claude Code |
 | Codex plugin | `.codex-plugin/` + `.agents/plugins/` + `.mcp.json` | Codex |
-| Cloudflare Worker | `src/worker.ts` | remote HTTP clients |
 
 ## Layout
 
 ```
 src/
-  server.ts        createServer(env) — registers all tools; shared by both entry points
-  index.ts         stdio entry point (Node)
-  worker.ts        Cloudflare Worker entry point (Streamable HTTP, POST /mcp)
-  config.ts        credential resolution — Node only, never import from worker.ts
-  services/api.ts  Redmine REST client over native fetch; owns RedmineEnv
-  tools/           issues, projects, time_entries, lookups
-skills/redmine/    portable Agent Skill shipped with the plugin
+  server.ts          createServer(env) — registers all tools
+  index.ts           stdio entry point
+  config.ts          credential resolution
+  services/api.ts    Redmine REST client over native fetch; owns RedmineEnv
+  tools/             issues, projects, time_entries, lookups
+skills/redmine/      portable Agent Skill shipped with the plugin
 ```
 
 ## Rules that are easy to get wrong
 
 **`config.ts` and `init.ts` are Node-only.** They use `node:fs`, and `init.ts` also
-uses stdin. Cloudflare Workers has neither, so `worker.ts` takes credentials from
-Worker secrets and must never import either module.
+uses stdin.
 
 **Nothing may be written to stdout or stderr on a successful start.** stdout is the
 JSON-RPC channel, and clients log every stderr line at error level — Claude Code
@@ -104,9 +101,6 @@ Elicitation is deliberately not used. `elicitation/create` is deprecated (SEP-25
 in favour of multi round-trip requests (SEP-2322), the spec requires URL mode rather
 than a form for API keys, and client support is uneven.
 
-**Worker auth fails closed.** `MCP_AUTH_TOKEN` is required; a missing secret returns
-500 rather than serving unauthenticated traffic. Do not reintroduce a public mode.
-
 **Skill tool names are unprefixed.** Clients namespace differently
 (`mcp__plugin_redmine_redmine__*` in Claude Code, other schemes elsewhere), so
 `skills/redmine/SKILL.md` refers to bare names like `redmine_list_issues`.
@@ -117,7 +111,6 @@ than a form for API keys, and client support is uneven.
 npm run build        # tsc, then chmod +x on the binary
 npm start            # run the stdio server
 npm start -- --init  # interactive setup; add --url/--api-key/--config-path to skip prompts
-npm run worker:dev   # run the Worker locally
 npm pack --dry-run   # inspect what would be published
 ```
 

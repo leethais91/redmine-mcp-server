@@ -1,5 +1,5 @@
 /**
- * Credential resolution for the stdio entry point (Node.js only).
+ * Credential resolution for the stdio entry point.
  *
  * Portable plugin manifests cannot carry secrets: the Agent Plugins spec expands
  * only ${PLUGIN_ROOT} and ${PLUGIN_DATA}, and forbids credentials in headers.
@@ -21,9 +21,6 @@
  * reports the problem through its tools, where the user can actually read it —
  * a process that exits shows up in an MCP client as "server failed", with the
  * explanation buried in a log.
- *
- * Not imported by worker.ts — Cloudflare Workers has no filesystem and receives
- * its credentials as Worker secrets.
  */
 
 import { readFileSync } from "node:fs";
