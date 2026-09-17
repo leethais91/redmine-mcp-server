@@ -74,12 +74,97 @@ Có thể dùng cả hai song song — share chung tool implementation trong `sr
 
 ---
 
+## Cài như một plugin
+
+Repo này đóng gói sẵn theo cả hai chuẩn plugin, nên hầu hết client cài được chỉ
+bằng một bước. Cả hai manifest đều khởi động cùng một package npm qua stdio.
+
+| Client | Cách cài |
+|---|---|
+| Cursor, ChatGPT, Kiro | cài từ URL của repository |
+| VS Code | **Chat: Install Plugin From Source**, hoặc marketplace `@agentPlugins` |
+| GitHub Copilot | cài từ URL của repository (IDE hoặc CLI) |
+| Claude Code | `claude plugin marketplace add leethais91/redmine-mcp-server` rồi `claude plugin install redmine@leethais91` |
+| Codex | `codex plugin marketplace add leethais91/redmine-mcp-server` rồi `codex plugin add redmine@leethais91` |
+
+Cài kiểu này là có luôn cả MCP server lẫn skill Redmine — không phải tải thêm gì.
+Muốn thử mà chưa cài, chạy `claude --plugin-dir .` trong thư mục checkout, plugin
+chỉ được nạp cho phiên đó.
+
+Codex khoá `@latest` thành một version cố định ngay lúc cài, nên sau mỗi release
+mới phải chạy lại `codex plugin add` thì mới cập nhật.
+
+Manifest: `plugin.json` + `mcp.json` theo chuẩn [Agent Plugins](https://agent-plugins.org)
+v1. Claude Code và Codex mỗi bên cần manifest riêng — `.claude-plugin/plugin.json`
+và `.codex-plugin/plugin.json` — nhưng cùng đọc một file `.mcp.json`, file này khai
+báo server ở dạng cả hai đều hiểu.
+
+Agent Plugins phải có `mcp.json` riêng vì hai chuẩn expand placeholder khác nhau:
+Claude Code thay `${CLAUDE_PLUGIN_DATA}` và để nguyên `${PLUGIN_DATA}`.
+
+> **Version vừa publish có thể chưa cài được.** Thiết lập chống tấn công chuỗi cung
+> ứng `min-release-age` của npm từ chối package mới hơn khoảng thời gian đã cấu
+> hình, báo `ENOVERSIONS: No versions available`. Hoặc chờ hết khoảng đó, hoặc cài
+> kèm `--min-release-age=0`.
+
+### Thông tin đăng nhập
+
+**Claude Code** hỏi ngay lúc cài plugin — điền Redmine URL và API key vào ô nhập là
+xong. Key được cất trong keychain của hệ điều hành, không nằm trong file nào của
+repo. Muốn đổi sau thì dùng `/config`.
+
+**Các client còn lại**, chạy setup một lần:
+
+```bash
+npx @leethais91/redmine-mcp-server --init
+```
+
+Lệnh này hỏi Redmine URL và API key, kiểm tra với server trước khi lưu, rồi ghi ra
+`~/.config/redmine-mcp/config.json` với quyền chỉ chủ sở hữu đọc được. Key sai sẽ
+báo ngay lúc đó, thay vì đợi đến lần gọi tool đầu tiên.
+
+Cần chạy tự động — trong Dockerfile, trong CI, hoặc để coding agent gọi — thì
+truyền thẳng giá trị thay vì trả lời từng câu hỏi:
+
+```bash
+npx @leethais91/redmine-mcp-server --init \
+  --url https://redmine.example.com --api-key <key>
+```
+
+Cả hai cách đều kiểm tra thông tin trước khi ghi bất cứ thứ gì.
+
+Nếu bỏ qua bước setup, server vẫn khởi động bình thường và mọi tool sẽ trả về đúng
+hướng dẫn này — không có chuyện hỏng âm thầm.
+
+Server tìm thông tin đăng nhập theo thứ tự:
+
+1. biến môi trường `REDMINE_URL` và `REDMINE_API_KEY`
+2. file JSON tại `REDMINE_CONFIG_PATH`, nếu file đó tồn tại — đây là cách các
+   manifest plugin trỏ vào thư mục dữ liệu riêng của chúng
+3. `~/.config/redmine-mcp/config.json` (hoặc `$XDG_CONFIG_HOME/redmine-mcp/config.json`)
+
+Việc bước 2 rơi xuống bước 3 khi file chưa tồn tại chính là thứ giúp `--init` dùng
+được cho cả bản cài plugin: client trỏ `REDMINE_CONFIG_PATH` vào thư mục dữ liệu của
+nó, chưa có gì ghi vào đó, nên file do `--init` tạo được dùng thay.
+
+Tóm lại `--init` lo cho bản cài thủ công, còn `REDMINE_CONFIG_PATH` vẫn để dành cho
+client có thư mục dữ liệu riêng từng plugin. Claude Code trỏ biến đó vào
+`~/.claude/plugins/data/redmine/config.json`, đồng thời truyền thẳng hai biến môi
+trường lấy từ thông tin đã hỏi lúc cài; Codex không có placeholder tương tự nên kế
+thừa hai biến môi trường từ shell của bạn qua allowlist `env_vars` trong `.mcp.json`.
+Chỉ cần một trong các đường đó hoạt động là đủ.
+
+---
+
 ## Chế độ 1 — Claude Desktop (Stdio)
 
 ### Cài đặt
 
+Không cần bước cài nào — `npx` sẽ tải package đã publish ngay lần chạy đầu. Nếu
+muốn chạy từ source:
+
 ```bash
-git clone <repo-url>
+git clone https://github.com/leethais91/redmine-mcp-server.git
 cd redmine-mcp-server
 npm install
 npm run build
@@ -90,6 +175,23 @@ npm run build
 Thêm vào `claude_desktop_config.json`:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "redmine": {
+      "command": "npx",
+      "args": ["-y", "@leethais91/redmine-mcp-server@latest"],
+      "env": {
+        "REDMINE_URL": "https://redmine.example.com",
+        "REDMINE_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+Nếu chạy từ source, trỏ vào file build ra:
 
 ```json
 {

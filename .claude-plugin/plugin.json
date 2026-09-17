@@ -1,10 +1,23 @@
 {
   "name": "redmine",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Redmine issue tracking, project management and time logging tools.",
   "author": { "name": "Thai Le" },
   "homepage": "https://github.com/leethais91/redmine-mcp-server#readme",
   "repository": "https://github.com/leethais91/redmine-mcp-server",
   "license": "MIT",
-  "mcpServers": "./.mcp.json"
+  "mcpServers": "./.mcp.json",
+  "userConfig": {
+    "redmine_url": {
+      "type": "string",
+      "title": "Redmine URL",
+      "description": "Your Redmine site, e.g. https://redmine.example.com. Leave blank if you already ran `npx @leethais91/redmine-mcp-server --init`."
+    },
+    "redmine_api_key": {
+      "type": "string",
+      "title": "Redmine API key",
+      "description": "In Redmine: My Account -> API access key. Leave blank if you already ran `npx @leethais91/redmine-mcp-server --init`.",
+      "sensitive": true
+    }
+  }
 }

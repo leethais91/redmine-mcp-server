@@ -5,6 +5,8 @@
       "command": "npx",
       "args": ["-y", "@leethais91/redmine-mcp-server@latest"],
       "env": {
+        "REDMINE_URL": "${user_config.redmine_url}",
+        "REDMINE_API_KEY": "${user_config.redmine_api_key}",
         "REDMINE_CONFIG_PATH": "${CLAUDE_PLUGIN_DATA}/config.json"
       },
       "env_vars": ["REDMINE_URL", "REDMINE_API_KEY", "REDMINE_CONFIG_PATH"]

@@ -110,7 +110,11 @@ placeholders: Claude Code substitutes `${CLAUDE_PLUGIN_DATA}` and passes
 
 ### Credentials
 
-Run setup once:
+**Claude Code** asks for them while installing the plugin — fill in the Redmine URL
+and API key at the prompt and you are done. The key is stored in your OS keychain,
+never in a file in the repository. Change them later with `/config`.
+
+**Everywhere else**, run setup once:
 
 ```bash
 npx @leethais91/redmine-mcp-server --init
@@ -119,6 +123,19 @@ npx @leethais91/redmine-mcp-server --init
 It asks for your Redmine URL and API key, verifies them against the server before
 saving, and writes `~/.config/redmine-mcp/config.json` with owner-only permissions.
 A wrong key is reported immediately rather than on your first tool call.
+
+To script it — in a Dockerfile, in CI, or from a coding agent — pass the values
+instead of answering prompts:
+
+```bash
+npx @leethais91/redmine-mcp-server --init \
+  --url https://redmine.example.com --api-key <key>
+```
+
+Both forms check the credentials before writing anything.
+
+If you skip setup, the server still starts and every tool answers with these
+instructions, so nothing fails silently.
 
 The server resolves credentials in this order:
 
@@ -133,9 +150,10 @@ nothing has written there, and the file from `--init` is used instead.
 
 So `--init` covers a manual install, while `REDMINE_CONFIG_PATH` stays available for
 clients that keep per-plugin data. Claude Code points it at
-`~/.claude/plugins/data/redmine/config.json`; Codex has no such placeholder and
+`~/.claude/plugins/data/redmine/config.json`, and also supplies the two variables
+directly from what it collected at install time; Codex has no such placeholder and
 inherits the two environment variables from your shell via the `env_vars` allowlist
-in `.mcp.json`. Any of the three paths works on its own.
+in `.mcp.json`. Any of the paths works on its own.
 
 ---
 

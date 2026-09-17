@@ -1,11 +1,15 @@
 /**
- * Interactive setup for `--init` (Node.js only).
+ * Setup for `--init` (Node.js only).
  *
  * Asks for the Redmine URL and API key, verifies them against the live server
  * before saving anything, and writes the config file the server reads by
  * default. Verifying first means a wrong key is reported here, while the user
  * is still looking at the terminal, instead of surfacing later as a failed tool
  * call inside an agent conversation.
+ *
+ * Values supplied through InitOptions skip the matching prompt, which is what
+ * lets a coding agent, an installer, or CI run setup without a TTY. The
+ * verify-then-write order is the same either way.
  *
  * Not imported by worker.ts — Cloudflare Workers has no filesystem or stdin.
  */
@@ -141,6 +145,15 @@ function askSecret(question: string): Promise<string> {
   });
 }
 
+/** Prompts for the Redmine URL, offering any previously saved one as default. */
+function askUrl(previous: string): Promise<string> {
+  return ask(
+    previous
+      ? `Redmine URL [${previous}]: `
+      : "Redmine URL (e.g. https://redmine.example.com): "
+  );
+}
+
 /** Normalizes user input into a URL with a scheme and no trailing slash. */
 function normalizeUrl(input: string): string {
   const withScheme = /^https?:\/\//i.test(input) ? input : `https://${input}`;
@@ -188,29 +201,36 @@ function existingUrl(path: string): string {
   }
 }
 
-export async function runInit(): Promise<void> {
+/** Values that skip the matching prompt when supplied on the command line. */
+export interface InitOptions {
+  url?: string;
+  apiKey?: string;
+  configPath?: string;
+}
+
+export async function runInit(options: InitOptions = {}): Promise<void> {
   try {
-    await promptAndSave();
+    await promptAndSave(options);
   } finally {
     closeReader();
   }
 }
 
-async function promptAndSave(): Promise<void> {
-  const path = process.env.REDMINE_CONFIG_PATH?.trim() || defaultConfigPath();
+async function promptAndSave(options: InitOptions): Promise<void> {
+  const path =
+    options.configPath?.trim() ||
+    process.env.REDMINE_CONFIG_PATH?.trim() ||
+    defaultConfigPath();
   const previous = existingUrl(path);
 
   process.stdout.write("Redmine MCP server setup\n\n");
 
-  const urlPrompt = previous
-    ? `Redmine URL [${previous}]: `
-    : "Redmine URL (e.g. https://redmine.example.com): ";
-  const urlAnswer = (await ask(urlPrompt)) || previous;
+  const urlAnswer = options.url?.trim() || (await askUrl(previous)) || previous;
   if (!urlAnswer) throw new ConfigError("A Redmine URL is required.");
 
-  const apiKey = await askSecret(
-    "API key (My Account -> API access key, input hidden): "
-  );
+  const apiKey =
+    options.apiKey?.trim() ||
+    (await askSecret("API key (My Account -> API access key, input hidden): "));
   if (!apiKey) throw new ConfigError("An API key is required.");
 
   const env: RedmineEnv = {

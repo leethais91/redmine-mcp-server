@@ -5,6 +5,24 @@
 export interface RedmineEnv {
   REDMINE_URL: string;
   REDMINE_API_KEY: string;
+  /**
+   * What to tell the user when credentials are missing. Entry points know how
+   * their users are meant to set things up — a terminal command on Node, Worker
+   * secrets on Cloudflare — and this layer only knows that nothing arrived.
+   * Optional: without it, callers get the plain message below.
+   */
+  SETUP_HINT?: string;
+}
+
+/**
+ * Credentials were never supplied. Carries a ready-to-read explanation, so
+ * handleApiError passes the message through untouched instead of decorating it.
+ */
+class NotConfiguredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NotConfiguredError";
+  }
 }
 
 class RedmineApiError extends Error {
@@ -24,11 +42,19 @@ export async function makeApiRequest<T>(
   data?: Record<string, unknown>,
   params?: Record<string, unknown>
 ): Promise<T> {
-  if (!env.REDMINE_URL) {
-    throw new Error("REDMINE_URL is required. Set it to your Redmine instance URL.");
-  }
-  if (!env.REDMINE_API_KEY) {
-    throw new Error("REDMINE_API_KEY is required. Find it in Redmine: My Account → API access key.");
+  // The server starts without credentials on purpose, so every call has to
+  // check. This is the only place a user hears about it, so it carries the
+  // whole setup story rather than naming the variable that happens to be empty.
+  const missing = (["REDMINE_URL", "REDMINE_API_KEY"] as const).filter(
+    (key) => !env[key]
+  );
+  if (missing.length > 0) {
+    throw new NotConfiguredError(
+      env.SETUP_HINT ??
+        `Redmine is not configured: ${missing.join(" and ")} ${
+          missing.length > 1 ? "are" : "is"
+        } missing.`
+    );
   }
 
   const baseURL = env.REDMINE_URL.replace(/\/+$/, "");
@@ -93,6 +119,9 @@ export async function makeApiRequest<T>(
 }
 
 export function handleApiError(error: unknown): string {
+  if (error instanceof NotConfiguredError) {
+    return error.message;
+  }
   if (error instanceof RedmineApiError) {
     switch (error.status) {
       case 401: return "Error: Authentication failed. Check your REDMINE_API_KEY.";

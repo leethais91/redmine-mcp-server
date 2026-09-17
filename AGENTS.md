@@ -58,18 +58,31 @@ share one file. Agent Plugins clients read `mcp.json` instead, which cannot be t
 same file: Claude Code expands `${CLAUDE_PLUGIN_DATA}` and passes `${PLUGIN_DATA}`
 through literally, while Agent Plugins clients do the opposite.
 
-`.mcp.json` carries both dialects in one object — `env` with a placeholder for
+`.mcp.json` carries both dialects in one object — `env` with placeholders for
 Claude Code, `env_vars` as an inherit-allowlist for Codex. Each client ignores the
 other's field; this was verified against Claude Code 2.1.273 and Codex 0.154.0.
 
 **Version lives in five places.** `package.json`, `server.json`, the three plugin
 manifests, and the `McpServer` constructor in `src/server.ts`. Bump together.
 
-**Credentials never travel in a manifest.** The Agent Plugins spec expands only two
-placeholders and forbids credentials in `headers`, so the server resolves them at
+**Credentials reach the server one of two ways, and only one is portable.** The
+Agent Plugins spec expands only two placeholders and forbids credentials in
+`headers`, so for every client except Claude Code the server resolves them at
 runtime: environment variables, then `REDMINE_CONFIG_PATH`, then the default config
-path written by `--init`. A path still containing an unexpanded `${...}` is ignored
-on purpose — see `hasUnexpandedPlaceholder` in `config.ts`.
+path written by `--init`.
+
+Claude Code is the exception. `userConfig` in `.claude-plugin/plugin.json` declares
+the two fields, Claude Code prompts for them when the plugin is enabled, keeps the
+one marked `sensitive` in the OS keychain, and substitutes them into `.mcp.json` as
+`${user_config.redmine_url}` / `${user_config.redmine_api_key}`. Both fields are
+optional on purpose: someone who already ran `--init`, or who sets the environment
+variables, must be able to skip the prompt and keep working.
+
+That is why every value is filtered through `hasUnexpandedPlaceholder` in
+`config.ts`, not just the config path. One `.mcp.json` serves several clients, so a
+client that does not implement the other's dialect passes `${...}` through as a
+literal; treating one as real would send a nonsense URL to Redmine or write files
+into a directory named after the placeholder.
 
 `REDMINE_CONFIG_PATH` treats absent and broken differently, and the distinction is
 load-bearing. Pointing at a file that does not exist means "look elsewhere", because
@@ -77,6 +90,15 @@ clients set this variable to their own plugin data directory before anything has
 written there; without the fallback, `--init` would report success and change
 nothing that the plugin can see. A file that exists but cannot be read or parsed
 still raises, so a corrupt config is never silently replaced by a different one.
+
+**Missing credentials must not stop the server.** `loadRedmineEnv` reports what is
+missing instead of throwing, `index.ts` starts the server anyway, and
+`makeApiRequest` fails each call with the setup instructions carried on
+`RedmineEnv.SETUP_HINT`. A process that exits shows up in a client as "server
+failed", with the explanation in a log the user never opens; a server that starts
+and answers with instructions puts them in front of the person who can act on them.
+The instructions deliberately steer users away from pasting an API key into the
+conversation, where it would land in the transcript.
 
 Elicitation is deliberately not used. `elicitation/create` is deprecated (SEP-2577)
 in favour of multi round-trip requests (SEP-2322), the spec requires URL mode rather
@@ -94,9 +116,13 @@ than a form for API keys, and client support is uneven.
 ```bash
 npm run build        # tsc, then chmod +x on the binary
 npm start            # run the stdio server
+npm start -- --init  # interactive setup; add --url/--api-key/--config-path to skip prompts
 npm run worker:dev   # run the Worker locally
 npm pack --dry-run   # inspect what would be published
 ```
 
 There is no test suite yet. Verify changes by running the stdio server with
-credentials and exercising the affected tool.
+credentials and exercising the affected tool. For credential handling, also check
+the degraded path: start the server with `XDG_CONFIG_HOME` pointing at an empty
+directory and no `REDMINE_*` variables, then call any tool — it must stay up,
+advertise all 20 tools, and answer with the setup instructions.

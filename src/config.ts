@@ -3,9 +3,9 @@
  *
  * Portable plugin manifests cannot carry secrets: the Agent Plugins spec expands
  * only ${PLUGIN_ROOT} and ${PLUGIN_DATA}, and forbids credentials in headers.
- * So a plugin-installed server has no way to receive the user's API key through
- * mcp.json. It reads a JSON config file from the plugin's own data directory
- * instead, which the manifest CAN point at via ${PLUGIN_DATA}.
+ * Claude Code can carry them, through user_config values it collects at install
+ * time, but no other client implements that. So resolution happens at runtime,
+ * from whichever of the three sources the client supports.
  *
  * Resolution order (first non-empty value wins, per field):
  *   1. process.env.REDMINE_URL / REDMINE_API_KEY
@@ -16,6 +16,11 @@
  * REDMINE_CONFIG_PATH is; that variable is really for plugin manifests. It also
  * covers the common case where a client sets REDMINE_CONFIG_PATH to its own
  * plugin data directory that nothing has written to yet.
+ *
+ * Nothing here throws on missing credentials. The server starts either way and
+ * reports the problem through its tools, where the user can actually read it —
+ * a process that exits shows up in an MCP client as "server failed", with the
+ * explanation buried in a log.
  *
  * Not imported by worker.ts — Cloudflare Workers has no filesystem and receives
  * its credentials as Worker secrets.
@@ -52,6 +57,15 @@ interface RedmineConfigFile {
   REDMINE_API_KEY?: string;
 }
 
+/** Credentials plus whatever stands between them and a working server. */
+export interface ResolvedConfig {
+  env: RedmineEnv;
+  /** Field names still empty after every source was consulted. */
+  missing: (keyof RedmineEnv)[];
+  /** A config file that exists but could not be used, described for the user. */
+  problem?: string;
+}
+
 /**
  * Reads a config file, returning null when it simply is not there.
  *
@@ -68,7 +82,7 @@ function readConfigFile(path: string): RedmineConfigFile | null {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new ConfigError(
-      `Cannot read REDMINE_CONFIG_PATH (${path}): ${(error as Error).message}`
+      `Cannot read the config file at ${path}: ${(error as Error).message}`
     );
   }
 
@@ -77,13 +91,13 @@ function readConfigFile(path: string): RedmineConfigFile | null {
     parsed = JSON.parse(raw);
   } catch (error) {
     throw new ConfigError(
-      `REDMINE_CONFIG_PATH (${path}) is not valid JSON: ${(error as Error).message}`
+      `The config file at ${path} is not valid JSON: ${(error as Error).message}`
     );
   }
 
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new ConfigError(
-      `REDMINE_CONFIG_PATH (${path}) must contain a JSON object with REDMINE_URL and REDMINE_API_KEY.`
+      `The config file at ${path} must contain a JSON object with REDMINE_URL and REDMINE_API_KEY.`
     );
   }
 
@@ -96,54 +110,92 @@ function clean(value: string | undefined): string {
 }
 
 /**
- * True when a manifest placeholder survived into the value, e.g. a client that
- * does not implement ${PLUGIN_DATA} passed the literal string through. Treating
- * such a value as a real path would produce a misleading "cannot read" error,
- * so callers ignore it and fall back to environment variables.
+ * True when a manifest placeholder survived into the value, e.g. Codex passing
+ * Claude Code's `${user_config.redmine_api_key}` or `${CLAUDE_PLUGIN_DATA}`
+ * through literally because it does not implement them. One `.mcp.json` serves
+ * several clients, so every value reaching this module may still hold another
+ * client's dialect; treating one as real would send a nonsense URL to Redmine
+ * or write files into a directory named after the placeholder.
  */
 function hasUnexpandedPlaceholder(value: string): boolean {
-  return /\$\{[A-Za-z_][A-Za-z0-9_]*\}/.test(value);
+  return /\$\{[^}]*\}/.test(value);
+}
+
+/** Discards a value that is really an unexpanded manifest placeholder. */
+function expanded(value: string): string {
+  return hasUnexpandedPlaceholder(value) ? "" : value;
 }
 
 /**
- * Resolves Redmine credentials, or throws an error that tells the user both
- * ways to supply them.
+ * Resolves Redmine credentials from every source, reporting what is still
+ * missing rather than throwing.
  */
-export function resolveRedmineEnv(): RedmineEnv {
-  const rawConfigPath = clean(process.env.REDMINE_CONFIG_PATH);
-  const configPath = hasUnexpandedPlaceholder(rawConfigPath) ? "" : rawConfigPath;
+export function loadRedmineEnv(): ResolvedConfig {
+  const configPath = expanded(clean(process.env.REDMINE_CONFIG_PATH));
 
-  // An explicit path wins when it holds a file, and a broken one still raises.
+  let file: RedmineConfigFile = {};
+  let problem: string | undefined;
+
+  // An explicit path wins when it holds a file, and a broken one is reported.
   // When it points nowhere, fall through to the default path: a client that
   // supplies REDMINE_CONFIG_PATH for its own plugin data must not shadow the
   // file `--init` wrote, or setup would appear to succeed and change nothing.
-  const file =
-    (configPath ? readConfigFile(configPath) : null) ??
-    readConfigFile(defaultConfigPath()) ??
-    {};
+  try {
+    file =
+      (configPath ? readConfigFile(configPath) : null) ??
+      readConfigFile(defaultConfigPath()) ??
+      {};
+  } catch (error) {
+    problem = error instanceof ConfigError ? error.message : String(error);
+  }
 
   const env: RedmineEnv = {
-    REDMINE_URL: clean(process.env.REDMINE_URL) || clean(file.REDMINE_URL),
+    REDMINE_URL:
+      expanded(clean(process.env.REDMINE_URL)) || clean(file.REDMINE_URL),
     REDMINE_API_KEY:
-      clean(process.env.REDMINE_API_KEY) || clean(file.REDMINE_API_KEY),
+      expanded(clean(process.env.REDMINE_API_KEY)) ||
+      clean(file.REDMINE_API_KEY),
   };
 
-  const missing = (Object.keys(env) as (keyof RedmineEnv)[]).filter(
+  const missing = (["REDMINE_URL", "REDMINE_API_KEY"] as const).filter(
     (key) => !env[key]
   );
 
-  if (missing.length > 0) {
-    throw new ConfigError(
-      `Missing Redmine credentials: ${missing.join(", ")}.\n\n` +
-        `Run this once to set them up:\n` +
-        `  npx @leethais91/redmine-mcp-server --init\n\n` +
-        `It asks for your Redmine URL and API key, checks them against the ` +
-        `server, and saves them to:\n` +
-        `  ${defaultConfigPath()}\n\n` +
-        `Alternatively, set REDMINE_URL and REDMINE_API_KEY as environment ` +
-        `variables.`
-    );
+  return { env, missing: [...missing], problem };
+}
+
+/**
+ * The message a user sees when credentials are missing — shown inside the
+ * client, as the result of whichever tool they asked for.
+ */
+export function setupInstructions(config: ResolvedConfig): string {
+  const lines: string[] = [];
+
+  if (config.problem) {
+    lines.push(config.problem, "");
   }
 
-  return env;
+  lines.push(
+    `Redmine is not configured yet (missing: ${config.missing.join(", ")}).`,
+    "",
+    "Set it up in one of these ways, then restart this MCP client:",
+    "",
+    "1. Claude Code plugin users: run /config, open the Redmine plugin, and fill",
+    "   in the Redmine URL and API key.",
+    "",
+    "2. Everyone else: run this in a terminal — it asks for the URL and key,",
+    "   checks them against the server, and saves them:",
+    "     npx @leethais91/redmine-mcp-server --init",
+    "",
+    `   Credentials are written to ${defaultConfigPath()}`,
+    "",
+    "3. Or set the REDMINE_URL and REDMINE_API_KEY environment variables in the",
+    "   MCP server entry of your client's config.",
+    "",
+    "The API key is in Redmine under My Account -> API access key.",
+    "Do not paste the API key into this conversation — the options above keep it",
+    "out of the transcript."
+  );
+
+  return lines.join("\n");
 }
