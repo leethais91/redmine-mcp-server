@@ -21,6 +21,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";
 import { loadRedmineEnv, setupInstructions, ConfigError } from "./config.js";
+import { loadPreferencesFile } from "./preferences-file.js";
 import { runInit } from "./init.js";
 import type { InitOptions } from "./init.js";
 
@@ -102,7 +103,18 @@ async function main(): Promise<void> {
       ? { ...config.env, SETUP_HINT: setupInstructions(config) }
       : config.env;
 
-  const server = createServer(env);
+  // Per-user preferences from the XDG config directory, with the legacy
+  // REDMINE_MGMT_ISSUE_ID environment variable as the catch-all fallback so
+  // existing setups keep working without re-saving anything.
+  const userState = loadPreferencesFile();
+  if (userState.preferences.catchAllIssueId == null) {
+    const envIssue = Number(process.env.REDMINE_MGMT_ISSUE_ID);
+    if (Number.isInteger(envIssue) && envIssue > 0) {
+      userState.preferences.catchAllIssueId = envIssue;
+    }
+  }
+
+  const server = createServer(env, userState);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

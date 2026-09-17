@@ -20,7 +20,12 @@ interface VersionsResponse {
   total_count: number;
 }
 
-export function registerProjectTools(server: McpServer, env: RedmineEnv): void {
+export function registerProjectTools(
+  server: McpServer,
+  env: RedmineEnv,
+  /** Injected per-user context; empty when no preferences are saved. */
+  userContext = ""
+): void {
   // List projects
   server.registerTool(
     "redmine_list_projects",
@@ -32,7 +37,7 @@ Args:
   - include: Associations to include (comma-separated): "trackers", "issue_categories", "enabled_modules", "time_entry_activities"
   - limit / offset: Pagination
 
-Returns: Table of projects.`,
+Returns: Table of projects.${userContext}`,
       inputSchema: {
         include: z.string().optional().describe("Associations: trackers,issue_categories,enabled_modules,time_entry_activities"),
         limit: z.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT).describe("Max results"),

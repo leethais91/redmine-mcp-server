@@ -40,12 +40,20 @@ export class ConfigError extends Error {
 }
 
 /**
+ * The XDG-aware directory shared by everything this server stores per user:
+ * credentials (`config.json`) and preferences (`preferences.json`).
+ */
+export function defaultConfigDirectory(): string {
+  const base = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
+  return join(base, "redmine-mcp");
+}
+
+/**
  * Where `--init` writes credentials and where the server looks when nothing
  * else supplies them. Follows the XDG base directory convention.
  */
 export function defaultConfigPath(): string {
-  const base = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
-  return join(base, "redmine-mcp", "config.json");
+  return join(defaultConfigDirectory(), "config.json");
 }
 
 /** Shape of the JSON config file. Keys mirror the env vars. */

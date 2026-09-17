@@ -110,7 +110,9 @@ For bulk timesheet auto-fill ("log this week", "fill timesheet"), see `reference
 | Versions | `redmine_list_versions(project_id)` |
 | Custom fields | `redmine_list_custom_fields` (admin API, falls back to issue extraction) |
 | Activities | `redmine_list_activities` (time entry activity types) |
-| Current user | `redmine_get_current_user` |
+| Current user | `redmine_get_current_user` (optional `include_memberships`) |
+| My preferences | `redmine_get_my_context` |
+| Save preferences | `redmine_save_preferences` |
 
 **Custom fields rule:** Always call `redmine_list_custom_fields` once per session before sending custom_fields in create/update — IDs vary per Redmine instance. Cache the result mentally for the rest of the session.
 
@@ -183,7 +185,7 @@ the upload instead.
 
 ### My Work View
 
-1. `redmine_get_current_user` — get my user_id
+1. `redmine_get_current_user` — get my user_id (add `include_memberships=true` to see my projects with roles)
 2. `redmine_list_issues(assigned_to_id="me", status_id="open")` — my open issues
 
 ### Time Tracking Report
@@ -207,6 +209,8 @@ the upload instead.
 - Any text field sent via API
 
 If the user provides content in another language, translate it to clear, professional English before submitting. Do not ask — just translate and show the enhanced version for confirmation.
+
+Exception: a saved `contentLanguage` preference (see Personalization) replaces English as the target language.
 
 ## Smart Defaults
 
@@ -275,8 +279,15 @@ Load these on-demand only when needed:
 - `references/ticket-style-guide.md` — Subject format, description templates, content quality checklist (load when creating/editing issues)
 - `references/smart-time-logging.md` — Bulk timesheet auto-fill workflow (load when user says "log this week", "fill timesheet", "log today X hours")
 
+## Personalization
+
+The server stores per-user preferences (focus projects, defaults, timesheet expectations) in a local file and injects them into tool descriptions at startup — when descriptions mention "Saved user preferences", use them without asking again.
+
+- **First session with a user**: tool descriptions say "none saved yet" → run the onboarding **once**: suggest candidate projects from `redmine_get_current_user(include_memberships=true)` + recent issues `assigned_to_id="me"`, ask which they actually work on, save via `redmine_save_preferences`. Never repeat the ask on later sessions — the saved file replaces the hint.
+- **Reviewing / changing**: `redmine_get_my_context` shows what is saved and where; `redmine_save_preferences` merges new values (IDs are validated against Redmine before saving; new values appear in descriptions on the next session).
+- **Honour saved values**: ambiguous project → prefer focus projects; time logging → prefer `defaultActivityId` / `catchAllIssueId`; "assign to X" → check `teammates` before other lookups; `timesheet` → expected days/hours; `contentLanguage` → overrides the Language Rule below when set.
+
 ## Configuration
 
-Optional env var (see `README.md` for setup):
-
-- `REDMINE_MGMT_ISSUE_ID` — default catch-all issue for time-tracking residuals (used by Smart Time Logging)
+- User preferences file (see `redmine_get_my_context`) — holds `catchAllIssueId` and other personalization.
+- Optional env var `REDMINE_MGMT_ISSUE_ID` — legacy fallback for the catch-all issue, used only when no preference is saved.

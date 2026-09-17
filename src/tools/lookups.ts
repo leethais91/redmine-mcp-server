@@ -23,7 +23,10 @@ interface UsersResponse {
 }
 
 interface UserResponse {
-  user: RedmineUser;
+  user: RedmineUser & {
+    /** Present when the request used include=memberships. */
+    memberships?: RedmineMembership[];
+  };
 }
 
 
@@ -331,8 +334,16 @@ Returns: Table of activity IDs and names.`,
       title: "Get Current Redmine User",
       description: `Get information about the currently authenticated user (based on the API key).
 
+Args:
+  - include_memberships: Also return the projects the user is a member of, with roles. Used to suggest focus projects when capturing user preferences.
+
 Returns: User details.`,
-      inputSchema: {},
+      inputSchema: {
+        include_memberships: z
+          .boolean()
+          .optional()
+          .describe("Also return project memberships (useful for suggesting focus projects)"),
+      },
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -340,17 +351,33 @@ Returns: User details.`,
         openWorldHint: true,
       },
     },
-    async () => {
+    async (params) => {
       try {
-        const data = await makeApiRequest<UserResponse>(env, "/users/current.json");
+        const queryParams = params?.include_memberships ? { include: "memberships" } : undefined;
+        const data = await makeApiRequest<UserResponse>(env, "/users/current.json", "GET", undefined, queryParams);
         const u = data.user;
 
-        return {
-          content: [{
-            type: "text",
-            text: `## Current User\n- **ID**: ${u.id}\n- **Login**: ${u.login}\n- **Name**: ${u.firstname} ${u.lastname}\n- **Email**: ${u.mail}\n- **Created**: ${u.created_on}\n- **Last login**: ${u.last_login_on ?? "—"}`,
-          }],
-        };
+        const lines = [
+          "## Current User",
+          `- **ID**: ${u.id}`,
+          `- **Login**: ${u.login}`,
+          `- **Name**: ${u.firstname} ${u.lastname}`,
+          `- **Email**: ${u.mail}`,
+          `- **Created**: ${u.created_on}`,
+          `- **Last login**: ${u.last_login_on ?? "—"}`,
+        ];
+
+        if (u.memberships?.length) {
+          lines.push("", "## Memberships", "");
+          lines.push("| Project | Project ID | Roles |");
+          lines.push("|---|---|---|");
+          for (const m of u.memberships) {
+            const roles = m.roles.map((r) => r.name).join(", ");
+            lines.push(`| ${m.project.name} | ${m.project.id} | ${roles} |`);
+          }
+        }
+
+        return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (error) {
         return { content: [{ type: "text", text: handleApiError(error) }] };
       }

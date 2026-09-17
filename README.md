@@ -5,8 +5,9 @@
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude (Desktop, Code, claude.ai, OpenClaw) drive a Redmine instance directly — list and search issues, create or update tickets, log time, and look up projects, users, statuses, and custom fields, all in natural language.
 
 **Highlights**
-- 🛠️ **22 tools** across issues, projects, time tracking, attachments, and lookups
+- 🛠️ **24 tools** across issues, projects, time tracking, attachments, lookups, and per-user preferences
 - 📎 **Attachments both ways** — upload a local file or image to an issue, download one back to disk, and view image attachments inline
+- 🎯 **Personalizes itself** — one-time onboarding saves your focus projects and defaults, injected into tool descriptions so agents stop asking which project you mean
 - ⚡ **Stateless & lightweight** — native `fetch`, zod-validated inputs, markdown-formatted output tuned for LLMs
 - 🔑 **Credentials stay out of client config** — `--init` stores them once, every client reuses them
 
@@ -62,6 +63,36 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 | `redmine_download_attachment` | Download an attachment; images come back viewable |
 
 Attachment IDs come from `redmine_get_issue` with `include="attachments"`.
+
+### Preferences
+| Tool | Description |
+|---|---|
+| `redmine_get_my_context` | Read saved preferences; carries one-time onboarding instructions when empty |
+| `redmine_save_preferences` | Save focus projects, defaults, teammates, and timesheet expectations (IDs validated against Redmine first) |
+
+---
+
+## Personalization
+
+On a busy Redmine instance you are a member of a few projects but can see dozens. The
+server fixes the "which project do you mean?" loop with a one-time onboarding:
+
+1. On the first session, tool descriptions tell the agent that no preferences are saved.
+2. The agent suggests candidates — projects from your memberships plus recent issues
+   assigned to you — and asks **once** which you actually work on.
+3. It saves them with `redmine_save_preferences`. From the next session on, your focus
+   projects and defaults ride along inside the tool descriptions themselves: zero extra
+   tool calls, no repeated asking — the saved file is the memory, not the agent.
+
+Saved fields: `focusProjects`, `defaultProjectId`, `defaultTrackerId`,
+`defaultActivityId`, `catchAllIssueId` (successor of the `REDMINE_MGMT_ISSUE_ID` env
+var, which still works as a fallback), `teammates` assignee shortcuts,
+`timesheet` expectations, and `contentLanguage`.
+
+Everything lives in one owner-only file shared by every client on the machine:
+`~/.config/redmine-mcp/preferences.json` (or `$XDG_CONFIG_HOME/redmine-mcp/preferences.json`).
+Review it with `redmine_get_my_context`, hand-edit it, or just tell the agent what to
+change — it re-saves with `redmine_save_preferences`.
 
 ---
 

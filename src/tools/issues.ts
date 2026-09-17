@@ -101,7 +101,12 @@ function formatIssueTable(issues: RedmineIssue[], columns?: string[]): string {
   return `${header}\n${separator}\n${rows}`;
 }
 
-export function registerIssueTools(server: McpServer, env: RedmineEnv): void {
+export function registerIssueTools(
+  server: McpServer,
+  env: RedmineEnv,
+  /** Injected per-user context; empty when no preferences are saved. */
+  userContext = ""
+): void {
   // List / search issues
   server.registerTool(
     "redmine_list_issues",
@@ -117,7 +122,7 @@ Args:
   - sort: Sort (e.g., "updated_on:desc")
   - view: "compact" (default, saves tokens: ID/Subject/Status/Priority/Assignee) or "full" (adds Tracker/Done)
   - fields: Override columns, e.g. ["id","subject","status","due_date"]. Available: id, tracker, subject, status, priority, assigned_to, done_ratio, project, updated_on, due_date, author
-  - limit / offset: Pagination`,
+  - limit / offset: Pagination${userContext}`,
       inputSchema: {
         project_id: z.union([z.string(), z.number()]).optional().describe("Project ID or identifier"),
         tracker_id: z.number().optional().describe("Tracker ID"),
@@ -300,7 +305,7 @@ Args:
   - estimated_hours: Estimated hours
   - done_ratio: % done (0-100)
 
-Returns: The created issue details.`,
+Returns: The created issue details.${userContext}`,
       inputSchema: {
         project_id: z.union([z.string(), z.number()]).describe("Project ID or identifier"),
         subject: z.string().min(1).describe("Issue subject/title"),

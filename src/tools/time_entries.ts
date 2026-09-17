@@ -15,7 +15,12 @@ interface TimeEntryResponse {
   time_entry: RedmineTimeEntry;
 }
 
-export function registerTimeEntryTools(server: McpServer, env: RedmineEnv): void {
+export function registerTimeEntryTools(
+  server: McpServer,
+  env: RedmineEnv,
+  /** Injected per-user context; empty when no preferences are saved. */
+  userContext = ""
+): void {
   // List time entries
   server.registerTool(
     "redmine_list_time_entries",
@@ -100,7 +105,7 @@ Args:
   - spent_on: Date spent (YYYY-MM-DD, defaults to today)
   - comments: Description of work done
 
-Returns: Created time entry details.`,
+Returns: Created time entry details.${userContext}`,
       inputSchema: {
         issue_id: z.number().optional().describe("Issue ID"),
         project_id: z.union([z.string(), z.number()]).optional().describe("Project ID or identifier"),

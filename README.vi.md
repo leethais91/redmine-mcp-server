@@ -5,8 +5,9 @@
 [Model Context Protocol](https://modelcontextprotocol.io) server giúp Claude (Desktop, Code, claude.ai, OpenClaw) thao tác trực tiếp với Redmine bằng ngôn ngữ tự nhiên — liệt kê/tìm kiếm issue, tạo & cập nhật ticket, log thời gian, tra cứu project, user, status, custom field...
 
 **Điểm nổi bật**
-- 🛠️ **22 tools** cho issues, projects, time tracking, attachments và lookups
+- 🛠️ **24 tools** cho issues, projects, time tracking, attachments, lookups và preference cá nhân
 - 📎 **Attachment hai chiều** — upload file/ảnh local lên issue, download về đĩa, và xem ảnh trực tiếp trong hội thoại
+- 🎯 **Tự cá nhân hóa** — onboarding một lần lưu focus project và mặc định, inject thẳng vào tool description để agent không hỏi lại "project nào?"
 - ⚡ **Stateless & nhẹ** — native `fetch`, input validate bằng zod, output markdown tối ưu cho LLM
 - 🔑 **Credential không nằm trong config client** — `--init` lưu một lần, mọi client dùng lại
 
@@ -62,6 +63,26 @@
 | `redmine_download_attachment` | Download attachment; ảnh trả về xem được luôn |
 
 ID attachment lấy từ `redmine_get_issue` với `include="attachments"`.
+
+### Preferences
+| Tool | Mô tả |
+|---|---|
+| `redmine_get_my_context` | Đọc preference đã lưu; khi trống kèm hướng dẫn onboarding một lần |
+| `redmine_save_preferences` | Lưu focus project, các giá trị mặc định, teammate, kỳ vọng timesheet (ID được kiểm tra với Redmine trước khi lưu) |
+
+---
+
+## Cá nhân hóa
+
+Trên Redmine đông project, bạn chỉ làm trực tiếp vài project nhưng thấy được hàng chục. Server hóa giải vòng lặp "project nào?" bằng onboarding một lần duy nhất:
+
+1. Phiên đầu tiên, tool description báo rằng chưa có preference nào được lưu.
+2. Agent gợi ý ứng viên — project từ membership của bạn cộng với issue được giao gần đây — và hỏi **một lần** bạn thực sự làm những project nào.
+3. Nó lưu lại qua `redmine_save_preferences`. Từ phiên tiếp theo, focus project và các giá trị mặc định đi ngay trong tool description: không tốn thêm tool call nào, không hỏi lại — file đã lưu chính là bộ nhớ, không phải trí nhớ của agent.
+
+Các trường đã lưu: `focusProjects`, `defaultProjectId`, `defaultTrackerId`, `defaultActivityId`, `catchAllIssueId` (kế thừa biến môi trường `REDMINE_MGMT_ISSUE_ID`, vẫn dùng được làm fallback), shortcut assignee `teammates`, kỳ vọng `timesheet`, và `contentLanguage`.
+
+Tất cả nằm trong một file duy nhất chỉ chủ sở hữu đọc được, dùng chung cho mọi client trên máy: `~/.config/redmine-mcp/preferences.json` (hoặc `$XDG_CONFIG_HOME/redmine-mcp/preferences.json`). Xem bằng `redmine_get_my_context`, sửa tay trực tiếp, hoặc chỉ cần nói cho agent biết muốn thay đổi gì — nó lưu lại qua `redmine_save_preferences`.
 
 ---
 

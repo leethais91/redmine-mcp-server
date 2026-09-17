@@ -1,6 +1,6 @@
 {
   "name": "@leethais91/redmine-mcp-server",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "MCP server for Redmine issue tracking API integration",
   "mcpName": "io.github.leethais91/redmine-mcp-server",
   "type": "module",
@@ -40,6 +40,7 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "test": "tsx --test tests/*.test.ts",
     "postbuild": "node -e \"require('fs').chmodSync('dist/index.js', 0o755)\"",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build"

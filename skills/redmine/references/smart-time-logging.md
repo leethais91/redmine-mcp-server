@@ -5,11 +5,12 @@ Auto-fill timesheets with minimal user input. Trigger phrase examples: "log this
 ## Configuration
 
 ```
-MANAGEMENT_ISSUE_ID: from env REDMINE_MGMT_ISSUE_ID — if not set, ask user once per session
-TARGET_HOURS_PER_DAY: 8                              # Fixed at 8h, no exceptions
+MANAGEMENT_ISSUE_ID: from saved preferences (catchAllIssueId) — fallback: env REDMINE_MGMT_ISSUE_ID — else ask user once per session
+TARGET_HOURS_PER_DAY: from saved preferences (timesheet.hoursPerDay) — default 8
+WORK_DAYS: from saved preferences (timesheet.workDays) — default Mon–Fri
 ```
 
-**Config resolution:** Check env `REDMINE_MGMT_ISSUE_ID` first. If unset, prompt user and remember for the session. The management issue is the catch-all bucket for time not directly attributable to a specific ticket (meetings, planning, mentoring, admin).
+**Config resolution:** Check the saved preferences injected into tool descriptions (or `redmine_get_my_context`) for `catchAllIssueId` first, then env `REDMINE_MGMT_ISSUE_ID`, then prompt the user and remember for the session. The management issue is the catch-all bucket for time not directly attributable to a specific ticket (meetings, planning, mentoring, admin). When the user gives one, offer to save it via `redmine_save_preferences` so next session needs no asking.
 
 ## Supported Modes
 
@@ -189,4 +190,4 @@ Done. Logged 27h across 4 days (11 entries).
 | Activity ID unknown             | Fetch `redmine_list_activities`, use first available   |
 | Time entry creation fails       | Report error, continue with remaining entries          |
 | User has no open issues         | Log all to management issue with note                  |
-| `REDMINE_MGMT_ISSUE_ID` not set | Ask user for management issue ID, remember for session |
+| No saved `catchAllIssueId` and `REDMINE_MGMT_ISSUE_ID` not set | Ask user for management issue ID, remember for session, offer to save it |
